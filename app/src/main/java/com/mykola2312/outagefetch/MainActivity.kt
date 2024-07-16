@@ -53,12 +53,31 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ExtractWebView() {
+fun ExtractWebView(onExtract: (String) -> Unit) {
     val url = stringResource(id = R.string.fetch_url)
 
     AndroidView(factory = {
         WebView(it).apply {
-            this.webViewClient = ExtractorClient()
+            this.webViewClient = object : WebViewClient() {
+                val JS_EXTRACT = "document.getElementsByClassName(\"aos-init aos-animate\").item(0).children[4].lastChild.src";
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return false
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+
+                    view?.evaluateJavascript(JS_EXTRACT, ValueCallback<String> {
+                        if (it != null) {
+                            val scheduleImgUrl = it.removeSurrounding("\"")
+                            Log.i("extract", scheduleImgUrl)
+
+                            onExtract(scheduleImgUrl)
+                        }
+                    })
+                }
+            }
         }
     }, update = {
         it.settings.javaScriptEnabled = true
@@ -66,37 +85,20 @@ fun ExtractWebView() {
     }) // , modifier = Modifier.size(300.dp)
 }
 
-class ExtractorClient : WebViewClient() {
-    companion object ExtractConstants {
-        const val JS_EXTRACT = "document.getElementsByClassName(\"aos-init aos-animate\").item(0).children[4].lastChild.src";
-    }
-
-    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-        return false
-    }
-
-    override fun onPageFinished(view: WebView?, url: String?) {
-        super.onPageFinished(view, url)
-
-        view?.evaluateJavascript(JS_EXTRACT, ValueCallback<String> {
-            if (it != null) {
-                val scheduleImgUrl = it.removeSurrounding("\"")
-                Log.i("extract", scheduleImgUrl)
-            }
-        })
-    }
-}
-
 @Composable
 fun FetchScreen() {
     var doFetch by remember { mutableStateOf(false) }
+    var scheduleImgUrl by remember { mutableStateOf("") }
+
     Column() {
         Button(onClick = { doFetch = true }) {
             Text("WebView Fetch")
         }
 
+        Text(scheduleImgUrl)
+
         if (doFetch) {
-            ExtractWebView()
+            ExtractWebView { scheduleImgUrl = it }
         }
     }
 }
